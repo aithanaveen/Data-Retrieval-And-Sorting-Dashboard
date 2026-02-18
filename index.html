@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Student Dashboard</title>
+</head>
+<body>
+
+<h2>Student Dashboard</h2>
+
+<label>Sort By:</label>
+<select id="sort">
+  <option value="">None</option>
+  <option value="name">Name</option>
+  <option value="join_date">Join Date</option>
+</select>
+
+<label>Department:</label>
+<select id="department">
+  <option value="">All</option>
+  <option value="CSE">CSE</option>
+  <option value="ECE">ECE</option>
+  <option value="MECH">MECH</option>
+</select>
+
+<button onclick="loadStudents()">Load Data</button>
+
+<h3>Student List</h3>
+<table border="1">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Department</th>
+      <th>Join Date</th>
+    </tr>
+  </thead>
+  <tbody id="data"></tbody>
+</table>
+
+<h3>Count Per Department</h3>
+<ul id="count"></ul>
+
+<script>
+async function loadStudents() {
+  const sort = document.getElementById("sort").value;
+  const dept = document.getElementById("department").value;
+
+  let url = "http://localhost:5000/students?";
+
+  if (sort) url += `sortBy=${sort}&`;
+  if (dept) url += `department=${dept}`;
+
+  const res = await fetch(url);
+  const students = await res.json();
+
+  const table = document.getElementById("data");
+  table.innerHTML = "";
+
+  students.forEach(s => {
+    table.innerHTML += `
+      <tr>
+        <td>${s.name}</td>
+        <td>${s.department}</td>
+        <td>${s.join_date.split('T')[0]}</td>
+      </tr>
+    `;
+  });
+
+  loadCount();
+}
+
+async function loadCount() {
+  const res = await fetch("http://localhost:5000/count");
+  const data = await res.json();
+
+  const list = document.getElementById("count");
+  list.innerHTML = "";
+
+  data.forEach(d => {
+    list.innerHTML += `<li>${d.department}: ${d.total}</li>`;
+  });
+}
+</script>
+
+</body>
+</html>
