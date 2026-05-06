@@ -6,18 +6,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "2648",
-  database: "dashboard_db",
+// Use a connection pool for better reliability and performance
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "2648",
+  database: process.env.DB_NAME || "dashboard_db",
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-db.connect((err) => {
+// Test the database connection
+pool.getConnection((err, connection) => {
   if (err) {
-    console.log("Database connection failed");
+    console.error("Database connection failed:", err.message);
   } else {
     console.log("Connected to MySQL");
+    connection.release();
   }
 });
 
@@ -26,32 +32,44 @@ app.get("/students", (req, res) => {
   const { sortBy, department } = req.query;
 
   let query = "SELECT * FROM students";
+  const queryParams = [];
 
   if (department) {
-    query += ` WHERE department='${department}'`;
+    query += " WHERE department = ?";
+    queryParams.push(department);
   }
 
-  if (sortBy) {
+  // Prevent SQL injection by validating sortBy against allowed columns
+  const allowedSortColumns = ["name", "join_date", "department"];
+  if (sortBy && allowedSortColumns.includes(sortBy)) {
     query += ` ORDER BY ${sortBy}`;
   }
 
-  db.query(query, (err, result) => {
-    if (err) res.send(err);
-    else res.json(result);
+  pool.query(query, queryParams, (err, result) => {
+    if (err) {
+      console.error("Error fetching students:", err.message);
+      res.status(500).json({ error: "Failed to fetch students" });
+    } else {
+      res.json(result);
+    }
   });
 });
 
 // Count per department
 app.get("/count", (req, res) => {
-  const query =
-    "SELECT department, COUNT(*) as total FROM students GROUP BY department";
+  const query = "SELECT department, COUNT(*) as total FROM students GROUP BY department";
 
-  db.query(query, (err, result) => {
-    if (err) res.send(err);
-    else res.json(result);
+  pool.query(query, (err, result) => {
+    if (err) {
+      console.error("Error fetching department counts:", err.message);
+      res.status(500).json({ error: "Failed to fetch department counts" });
+    } else {
+      res.json(result);
+    }
   });
 });
 
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

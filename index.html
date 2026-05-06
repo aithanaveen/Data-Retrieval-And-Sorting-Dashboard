@@ -2,6 +2,12 @@
 <html>
 <head>
   <title>Student Dashboard</title>
+  <style>
+    .error { color: red; margin: 10px 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+  </style>
 </head>
 <body>
 
@@ -24,8 +30,10 @@
 
 <button onclick="loadStudents()">Load Data</button>
 
+<div id="error-message" class="error"></div>
+
 <h3>Student List</h3>
-<table border="1">
+<table>
   <thead>
     <tr>
       <th>Name</th>
@@ -40,44 +48,77 @@
 <ul id="count"></ul>
 
 <script>
+// Utility function to escape HTML characters
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showError(message) {
+  document.getElementById("error-message").textContent = message;
+}
+
+function clearError() {
+  document.getElementById("error-message").textContent = "";
+}
+
 async function loadStudents() {
+  clearError();
   const sort = document.getElementById("sort").value;
   const dept = document.getElementById("department").value;
 
   let url = "http://localhost:5000/students?";
 
-  if (sort) url += `sortBy=${sort}&`;
-  if (dept) url += `department=${dept}`;
+  if (sort) url += `sortBy=${encodeURIComponent(sort)}&`;
+  if (dept) url += `department=${encodeURIComponent(dept)}`;
 
-  const res = await fetch(url);
-  const students = await res.json();
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Failed to fetch students data");
+    
+    const students = await res.json();
+    const table = document.getElementById("data");
+    table.innerHTML = "";
 
-  const table = document.getElementById("data");
-  table.innerHTML = "";
+    students.forEach(s => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHTML(s.name || 'N/A')}</td>
+        <td>${escapeHTML(s.department || 'N/A')}</td>
+        <td>${escapeHTML(s.join_date ? s.join_date.split('T')[0] : 'N/A')}</td>
+      `;
+      table.appendChild(tr);
+    });
 
-  students.forEach(s => {
-    table.innerHTML += `
-      <tr>
-        <td>${s.name}</td>
-        <td>${s.department}</td>
-        <td>${s.join_date.split('T')[0]}</td>
-      </tr>
-    `;
-  });
-
-  loadCount();
+    await loadCount();
+  } catch (error) {
+    console.error(error);
+    showError("Error loading data. Please make sure the server is running.");
+  }
 }
 
 async function loadCount() {
-  const res = await fetch("http://localhost:5000/count");
-  const data = await res.json();
+  try {
+    const res = await fetch("http://localhost:5000/count");
+    if (!res.ok) throw new Error("Failed to fetch department counts");
 
-  const list = document.getElementById("count");
-  list.innerHTML = "";
+    const data = await res.json();
+    const list = document.getElementById("count");
+    list.innerHTML = "";
 
-  data.forEach(d => {
-    list.innerHTML += `<li>${d.department}: ${d.total}</li>`;
-  });
+    data.forEach(d => {
+      const li = document.createElement("li");
+      li.textContent = `${d.department}: ${d.total}`;
+      list.appendChild(li);
+    });
+  } catch (error) {
+    console.error("Error loading count:", error);
+    // Don't overwrite the main error message if it's already showing
+    if (!document.getElementById("error-message").textContent) {
+      showError("Error loading department counts.");
+    }
+  }
 }
 </script>
 
